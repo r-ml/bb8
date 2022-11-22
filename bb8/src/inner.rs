@@ -40,7 +40,12 @@ where
     }
 
     pub(crate) async fn start_connections(&self) -> Result<(), M::Error> {
-        let wanted = self.inner.internals.lock().wanted(&self.inner.statics);
+        let wanted = self
+            .inner
+            .internals
+            .lock()
+            .unwrap()
+            .wanted(&self.inner.statics);
         let mut stream = self.replenish_idle_connections(wanted);
         while let Some(result) = stream.next().await {
             result?;
@@ -49,7 +54,7 @@ where
     }
 
     pub(crate) fn spawn_start_connections(&self) {
-        let mut locked = self.inner.internals.lock();
+        let mut locked = self.inner.internals.lock().unwrap();
         self.spawn_replenishing_approvals(locked.wanted(&self.inner.statics));
     }
 
@@ -108,7 +113,7 @@ where
     {
         loop {
             let mut conn = {
-                let mut locked = self.inner.internals.lock();
+                let mut locked = self.inner.internals.lock().unwrap();
                 match locked.pop(&self.inner.statics) {
                     Some((conn, approvals)) => {
                         self.spawn_replenishing_approvals(approvals);
@@ -134,7 +139,7 @@ where
 
         let (tx, rx) = oneshot::channel();
         {
-            let mut locked = self.inner.internals.lock();
+            let mut locked = self.inner.internals.lock().unwrap();
             let approvals = locked.push_waiter(tx, &self.inner.statics);
             self.spawn_replenishing_approvals(approvals);
         };
@@ -161,7 +166,7 @@ where
             }
         });
 
-        let mut locked = self.inner.internals.lock();
+        let mut locked = self.inner.internals.lock().unwrap();
         match conn {
             Some(conn) => locked.put(conn, None, self.inner.clone()),
             None => {
@@ -173,11 +178,11 @@ where
 
     /// Returns information about the current state of the pool.
     pub(crate) fn state(&self) -> State {
-        self.inner.internals.lock().state()
+        self.inner.internals.lock().unwrap().state()
     }
 
     fn reap(&self) {
-        let mut internals = self.inner.internals.lock();
+        let mut internals = self.inner.internals.lock().unwrap();
         let approvals = internals.reap(&self.inner.statics);
         self.spawn_replenishing_approvals(approvals);
     }
@@ -208,12 +213,13 @@ where
                     shared
                         .internals
                         .lock()
+                        .unwrap()
                         .put(conn, Some(approval), self.inner.clone());
                     return Ok(());
                 }
                 Err(e) => {
                     if Instant::now() - start > self.inner.statics.connection_timeout {
-                        let mut locked = shared.internals.lock();
+                        let mut locked = shared.internals.lock().unwrap();
                         locked.connect_failed(approval);
                         return Err(e);
                     } else {

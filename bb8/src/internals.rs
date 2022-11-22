@@ -1,9 +1,9 @@
 use std::cmp::min;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Instant;
 
 use futures_channel::oneshot;
-use parking_lot::Mutex;
 
 use crate::api::{Builder, ManageConnection};
 use std::collections::VecDeque;
@@ -188,7 +188,7 @@ impl<M: ManageConnection> InternalsGuard<M> {
 impl<M: ManageConnection> Drop for InternalsGuard<M> {
     fn drop(&mut self) {
         if let Some(conn) = self.conn.take() {
-            let mut locked = self.pool.internals.lock();
+            let mut locked = self.pool.internals.lock().unwrap();
             locked.put(conn, None, self.pool.clone());
         }
     }
